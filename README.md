@@ -2,6 +2,8 @@
 
 基于Kaggle公开零售数据集，完成从数据建模到可视化分析并生成智能分析报告的完整BI项目链路。
 
+🔗 **在线体验**：[交互式分析报告](https://peng-yue508.github.io/supermarket_bi_dashboard/report.html)
+
 ## 项目架构
 
 **数据源** → Kaggle CSV（12万行）
