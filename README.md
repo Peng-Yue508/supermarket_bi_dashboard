@@ -1,18 +1,19 @@
-# 零售销售数据分析看板（Supermarket BI Dashboard）
-
+<h1 align="center">零售销售数据分析看板</h1>
+<p align="center">
 基于Kaggle公开零售数据集，完成从数据建模到可视化分析并生成智能分析报告的完整BI项目链路。
-
-🔗 **在线体验**：[交互式分析报告](https://peng-yue508.github.io/supermarket_bi_dashboard/report.html)
+<br><br>
+🔗 <a href="https://peng-yue508.github.io/supermarket_bi_dashboard/report.html">交互式分析报告</a>
+</p>
 
 ## 项目架构
 
-**数据源** → Kaggle CSV（12万行）
+**数据源** → 从Kaggle下载的CSV文件
 
-**数据处理** → Python ETL脚本 → MySQL星型数据库（6张表）
+**数据处理** → Python ETL脚本 → MySQL星型数据库
 
 **输出** → 两个方向：
 1. Power BI Desktop交互看板（KPI、趋势图、切片器）
-2. Python 自动生成HTML报告（可切片筛选，结论根据筛选条件自动输出）
+2. Python自动生成HTML报告（可切片筛选，结论根据筛选条件自动输出）
 
 ## 技术栈
 
@@ -64,7 +65,9 @@ Kaggle: [Supermarket Dataset](https://www.kaggle.com/datasets/datascikhan/superm
 
 1. **启动MySQL服务**，创建数据库：
 
+   ```sql
    CREATE DATABASE supermarket_bi DEFAULT CHARACTER SET utf8mb4;
+   ```
 
 2. **执行建表SQL**：用MySQL Workbench打开`01_star_schema.sql`，全选执行，创建6张表（fact_sales + dim_date/customer/product/store/promotion）。
 
@@ -72,21 +75,27 @@ Kaggle: [Supermarket Dataset](https://www.kaggle.com/datasets/datascikhan/superm
 
 4. **安装Python依赖**：
 
+   ```bash
    pip install pandas pymysql pyecharts
+   ```
 
-5. **运行ETL脚本**，将CSV数据导入 MySQL：
+5. **运行ETL脚本**，将CSV数据导入MySQL：
 
+   ```bash
    python 02_etl_to_mysql.py
+   ```
 
-   等待输出"ETL 完成"，预期入库120,000行事实数据。
+   等待输出"ETL完成"，预期入库120,000行事实数据。
 
-6. **运行智能报告脚本**，生成交互式 HTML：
+6. **运行智能报告脚本**，生成交互式HTML：
 
+   ```bash
    python 04_smart_report.py
+   ```
 
    输出`report.html`，用浏览器打开即可查看。
 
-8. **配置Power BI Desktop**：
+7. **配置Power BI Desktop**：
    - 获取数据 → MySQL数据库 → 服务器填localhost，数据库填supermarket_bi
    - 导入全部6张表
    - 在模型视图中建立关系：fact_sales的date_id/customer_id/product_id/store_id/promotion_id分别连接到对应维度表
@@ -104,13 +113,16 @@ Kaggle: [Supermarket Dataset](https://www.kaggle.com/datasets/datascikhan/superm
 
 ## 看板预览
 
-### Power BI 交互看板
+### Power BI交互看板
+
 ![看板全景](screenshots/ss_sp1-pbi.png)
 
 ### 数据模型（星型模型）
+
 ![模型关系图](screenshots/ss_sp3-pbi_m.png)
 
-### 交互式 HTML 报告
+### 交互式HTML报告
+
 ![HTML报告](screenshots/ss_sp2-html.png)
 
 ## 项目亮点
