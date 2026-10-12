@@ -1,15 +1,15 @@
 # 零售销售数据分析看板（Supermarket BI Dashboard）
 
-基于Kaggle公开零售数据集，完成从数据建模到可视化分析的完整BI项目链路。
+基于Kaggle公开零售数据集Supermarket Large Dataset，完成从数据建模到可视化分析的完整BI项目链路。
 
 ## 项目架构
 
-Kaggle CSV (12 万行，323 列)
-↓ Python ETL (02_etl_to_mysql.py)
-MySQL 星型模型 (6 张表)
-↓
+Kaggle CSV (12万行, 323列)
+    ↓ Python ETL
+MySQL 星型模型 (6张表)
+    ↓
 ├── Power BI Desktop 交互看板
-└── Python 自动生成 HTML 智能报告 (04_smart_report.py)
+└── Python 自动生成 HTML 智能报告
 
 ## 技术栈
 
