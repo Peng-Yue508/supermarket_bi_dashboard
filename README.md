@@ -4,12 +4,13 @@
 
 ## 项目架构
 
-Kaggle CSV (12万行, 323列)
-    ↓ Python ETL
-MySQL 星型模型 (6张表)
-    ↓
-├── Power BI Desktop 交互看板
-└── Python 自动生成 HTML 智能报告
+**数据源** → Kaggle CSV（12万行）
+
+**数据处理** → Python ETL 脚本 → MySQL 星型数据库（6张表）
+
+**输出** → 两个方向：
+1. Power BI Desktop 交互看板（KPI、趋势图、切片器）
+2. Python 自动生成 HTML 报告（可筛选，自动输出结论）
 
 ## 技术栈
 
