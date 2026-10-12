@@ -1,6 +1,6 @@
 # 零售销售数据分析看板（Supermarket BI Dashboard）
 
-基于Kaggle公开零售数据集Supermarket Large Dataset，完成从数据建模到可视化分析的完整BI项目链路。
+基于 Kaggle 公开零售数据集，完成从数据建模到可视化分析的完整 BI 项目链路。
 
 ## 项目架构
 
@@ -51,12 +51,43 @@ Kaggle: [Supermarket Dataset](https://www.kaggle.com/datasets/datascikhan/superm
 
 ## 本地运行
 
-1. 创建 MySQL 数据库，执行 `01_star_schema.sql`
-2. 复制 `config.example.py` 为 `config.py`，填入数据库密码
-3. 安装依赖：`pip install pandas pymysql pyecharts`
-4. 运行 ETL：`python 02_etl_to_mysql.py`
-5. 运行报告：`python 04_smart_report.py`
-6. 用 Power BI Desktop 连接 MySQL，加载 6 张表，建立关系
+### 前置环境
+
+- MySQL 8.0+（需安装 MySQL Connector/NET 驱动，Power BI 连接用）
+- Python 3.10+
+- Power BI Desktop（Windows）
+
+### 步骤
+
+1. **启动 MySQL 服务**，创建数据库：
+
+   CREATE DATABASE supermarket_bi DEFAULT CHARACTER SET utf8mb4;
+
+2. **执行建表 SQL**：用 MySQL Workbench 打开 `01_star_schema.sql`，全选执行，创建 6 张表（fact_sales + dim_date/customer/product/store/promotion）。
+
+3. **配置数据库连接**：复制 `config.example.py` 为 `config.py`，填入你的 MySQL root 密码。
+
+4. **安装 Python 依赖**：
+
+   pip install pandas pymysql pyecharts
+
+5. **运行 ETL 脚本**，将 CSV 数据导入 MySQL：
+
+   python 02_etl_to_mysql.py
+
+   等待输出 "ETL 完成"，预期入库 120,000 行事实数据。
+
+6. **运行智能报告脚本**，生成交互式 HTML：
+
+   python 04_smart_report.py
+
+   输出 `report.html`，用浏览器打开即可查看。
+
+7. **配置 Power BI Desktop**：
+   - 获取数据 → MySQL 数据库 → 服务器填 localhost，数据库填 supermarket_bi
+   - 导入全部 6 张表
+   - 在模型视图中建立关系：fact_sales 的 date_id/customer_id/product_id/store_id/promotion_id 分别连接到对应维度表
+   - 参考 `03_dax_measures.md` 创建度量值，拖拽生成看板
 
 ## 看板功能
 
