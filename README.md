@@ -105,13 +105,13 @@ Kaggle: [Supermarket Dataset](https://www.kaggle.com/datasets/datascikhan/superm
 ## 看板预览
 
 ### Power BI 交互看板
-![看板全景](screenshots/sp截图1-pbi.png)
+![看板全景](screenshots/ss_sp1-pbi.png)
 
 ### 数据模型（星型模型）
-![模型关系图](screenshots/sp截图3-pbi模型视图.png)
+![模型关系图](screenshots/ss_sp3-pbi_m.png)
 
 ### 交互式 HTML 报告
-![HTML报告](screenshots/sp截图2-html.png)
+![HTML报告](screenshots/ss_sp2-html.png)
 
 ## 项目亮点
 
