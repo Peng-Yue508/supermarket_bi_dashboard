@@ -102,6 +102,17 @@ Kaggle: [Supermarket Dataset](https://www.kaggle.com/datasets/datascikhan/superm
 - 购物时段分布
 - 年份、区域切片器联动筛选
 
+## 看板预览
+
+### Power BI 交互看板
+![看板全景](screenshots/sp截图1-pbi.png)
+
+### 数据模型（星型模型）
+![模型关系图](screenshots/sp截图3-pbi模型视图.png)
+
+### 交互式 HTML 报告
+![HTML报告](screenshots/sp截图2-html.png)
+
 ## 项目亮点
 
 - **完整链路**：从原始CSV到最终可视化全链路
