@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-智能分析报告 (交互版): MySQL取数 → 嵌入HTML → 前端JS筛选
-用法: python 04_smart_report.py
-输出: report.html
+智能分析报告 (交互版): MySQL预聚合 → 嵌入HTML → 前端JS筛选
 """
 import pymysql
 import pandas as pd
@@ -18,30 +16,92 @@ def q(sql):
         return pd.read_sql(sql, conn)
 
 def main():
-    df = q("""
-      SELECT d.year, d.month,
+    # 每个图表单独预聚合, 数据量极小
+    # 1. 月度趋势
+    monthly = q("""
+      SELECT d.year, s.store_region,
              CONCAT(d.year, '-', LPAD(d.month, 2, '0')) AS ym,
-             s.store_region,
-             p.product_category,
-             f.payment_method,
-             f.shopping_period,
-             f.net_sales, f.gross_profit, f.transaction_id, f.customer_id
+             ROUND(SUM(f.net_sales),2) AS sales,
+             ROUND(SUM(f.gross_profit),2) AS profit,
+             COUNT(*) AS orders
+      FROM fact_sales f
+      JOIN dim_date d ON f.date_id=d.date_id
+      JOIN dim_store s ON f.store_id=s.store_id
+      GROUP BY d.year, s.store_region, ym
+    """)
+
+    # 2. 品类
+    cat = q("""
+      SELECT d.year, s.store_region, p.product_category,
+             ROUND(SUM(f.net_sales),2) AS sales
       FROM fact_sales f
       JOIN dim_date d ON f.date_id=d.date_id
       JOIN dim_store s ON f.store_id=s.store_id
       JOIN dim_product p ON f.product_id=p.product_id
+      GROUP BY d.year, s.store_region, p.product_category
     """)
 
-    data_json = json.dumps(df.to_dict(orient="records"), default=str)
-    years = sorted(df["year"].unique().tolist())
-    regions = sorted(df["store_region"].dropna().unique().tolist())
+    # 3. 区域
+    region = q("""
+      SELECT d.year, s.store_region,
+             ROUND(SUM(f.net_sales),2) AS sales
+      FROM fact_sales f
+      JOIN dim_date d ON f.date_id=d.date_id
+      JOIN dim_store s ON f.store_id=s.store_id
+      GROUP BY d.year, s.store_region
+    """)
 
+    # 4. 支付方式
+    pay = q("""
+      SELECT d.year, s.store_region, f.payment_method,
+             ROUND(SUM(f.net_sales),2) AS sales
+      FROM fact_sales f
+      JOIN dim_date d ON f.date_id=d.date_id
+      JOIN dim_store s ON f.store_id=s.store_id
+      GROUP BY d.year, s.store_region, f.payment_method
+    """)
+
+    # 5. 购物时段
+    period = q("""
+      SELECT d.year, s.store_region, f.shopping_period,
+             ROUND(SUM(f.net_sales),2) AS sales
+      FROM fact_sales f
+      JOIN dim_date d ON f.date_id=d.date_id
+      JOIN dim_store s ON f.store_id=s.store_id
+      GROUP BY d.year, s.store_region, f.shopping_period
+    """)
+
+    # 6. KPI totals (按年+区域)
+    kpi = q("""
+      SELECT d.year, s.store_region,
+             ROUND(SUM(f.net_sales),2) AS sales,
+             ROUND(SUM(f.gross_profit),2) AS profit,
+             COUNT(*) AS orders
+      FROM fact_sales f
+      JOIN dim_date d ON f.date_id=d.date_id
+      JOIN dim_store s ON f.store_id=s.store_id
+      GROUP BY d.year, s.store_region
+    """)
+
+    years = sorted(monthly["year"].unique().tolist())
+    regions = sorted(monthly["store_region"].dropna().unique().tolist())
     year_opts = "".join(f'<option value="{y}">{y}</option>' for y in years)
     region_opts = "".join(f'<option value="{r}">{r}</option>' for r in regions)
 
+    data = {
+        "kpi": kpi.to_dict(orient="records"),
+        "monthly": monthly.to_dict(orient="records"),
+        "category": cat.to_dict(orient="records"),
+        "region": region.to_dict(orient="records"),
+        "payment": pay.to_dict(orient="records"),
+        "period": period.to_dict(orient="records"),
+    }
+    data_json = json.dumps(data, default=str)
+    print(f"数据量: kpi={len(kpi)}, monthly={len(monthly)}, category={len(cat)}")
+
     html = """<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>零售销售数据分析报告</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI','Microsoft YaHei',sans-serif; background: #f0f2f5; color: #333; padding: 24px; }
@@ -69,18 +129,8 @@ h1 { font-size: 28px; margin-bottom: 16px; }
 <div class="container">
   <h1>零售销售数据分析报告</h1>
   <div class="filters">
-    <label>年份：
-      <select id="f-year">
-        <option value="all">全部</option>
-        __YEAR_OPTS__
-      </select>
-    </label>
-    <label>区域：
-      <select id="f-region">
-        <option value="all">全部</option>
-        __REGION_OPTS__
-      </select>
-    </label>
+    <label>年份：<select id="f-year"><option value="all">全部</option>__YEAR_OPTS__</select></label>
+    <label>区域：<select id="f-region"><option value="all">全部</option>__REGION_OPTS__</select></label>
   </div>
   <div class="kpi-row">
     <div class="kpi-card"><div class="label">总销售额</div><div class="value" id="kpi-sales">-</div></div>
@@ -105,13 +155,13 @@ h1 { font-size: 28px; margin-bottom: 16px; }
   </div>
 </div>
 <script>
-const RAW = __DATA_JSON__;
+const D = __DATA_JSON__;
 const charts = {};
 
-function getFiltered() {
+function filterRows(rows) {
   const y = document.getElementById('f-year').value;
   const r = document.getElementById('f-region').value;
-  return RAW.filter(d =>
+  return rows.filter(d =>
     (y === 'all' || String(d.year) === y) &&
     (r === 'all' || d.store_region === r)
   );
@@ -120,11 +170,11 @@ function getFiltered() {
 function fmtWan(v) { return '\u00a5' + (v/10000).toFixed(1) + ' \u4e07'; }
 
 function render() {
-  const rows = getFiltered();
-  const sales = rows.reduce((s,d)=>s+(+d.net_sales||0),0);
-  const profit = rows.reduce((s,d)=>s+(+d.gross_profit||0),0);
-  const orders = new Set(rows.map(d=>d.transaction_id)).size;
-  const cust = new Set(rows.map(d=>d.customer_id)).size;
+  // KPI
+  const kRows = filterRows(D.kpi);
+  const sales = kRows.reduce((s,d)=>s+(+d.sales||0),0);
+  const profit = kRows.reduce((s,d)=>s+(+d.profit||0),0);
+  const orders = kRows.reduce((s,d)=>s+(+d.orders||0),0);
   document.getElementById('kpi-sales').textContent = fmtWan(sales);
   document.getElementById('kpi-profit').textContent = fmtWan(profit);
   document.getElementById('kpi-margin').textContent = sales ? (profit/sales*100).toFixed(1)+'%' : '-';
@@ -132,16 +182,14 @@ function render() {
   document.getElementById('kpi-aov').textContent = orders ? '\u00a5' + (sales/orders).toFixed(1) : '-';
 
   // 月度趋势
+  const mRows = filterRows(D.monthly);
   const mAgg = {};
-  rows.forEach(d => {
-    const k = d.ym;
-    if (!mAgg[k]) mAgg[k] = {sales:0, profit:0};
-    mAgg[k].sales += +d.net_sales||0;
-    mAgg[k].profit += +d.gross_profit||0;
+  mRows.forEach(d => {
+    if (!mAgg[d.ym]) mAgg[d.ym] = {sales:0, profit:0};
+    mAgg[d.ym].sales += +d.sales||0;
+    mAgg[d.ym].profit += +d.profit||0;
   });
   const months = Object.keys(mAgg).sort();
-  const lineData = months.map(k=>+(mAgg[k].sales/10000).toFixed(1));
-  const profitData = months.map(k=>+(mAgg[k].profit/10000).toFixed(1));
   if (!charts.line) charts.line = echarts.init(document.getElementById('chart-line'));
   charts.line.setOption({
     title: {text:'\u6708\u5ea6\u9500\u552e\u8d8b\u52bf\uff08\u4e07\u5143\uff09', left:'center', textStyle:{fontSize:14}},
@@ -150,19 +198,16 @@ function render() {
     xAxis: {type:'category', data:months, axisLabel:{rotate:45,fontSize:10}},
     yAxis: {type:'value'},
     series: [
-      {name:'\u9500\u552e\u989d', type:'line', smooth:true, data:lineData},
-      {name:'\u6bdb\u5229', type:'line', smooth:true, data:profitData}
+      {name:'\u9500\u552e\u989d', type:'line', smooth:true, data:months.map(k=>+(mAgg[k].sales/10000).toFixed(1))},
+      {name:'\u6bdb\u5229', type:'line', smooth:true, data:months.map(k=>+(mAgg[k].profit/10000).toFixed(1))}
     ]
   });
 
   // 品类
-  const catAgg = {};
-  rows.forEach(d => {
-    const k = d.product_category || '\u672a\u77e5';
-    if (!catAgg[k]) catAgg[k] = 0;
-    catAgg[k] += +d.net_sales||0;
-  });
-  const catArr = Object.entries(catAgg).map(([k,v])=>({name:k, val:v})).sort((a,b)=>b.val-a.val).slice(0,10);
+  const cRows = filterRows(D.category);
+  const cAgg = {};
+  cRows.forEach(d => { cAgg[d.product_category] = (cAgg[d.product_category]||0) + (+d.sales||0); });
+  const catArr = Object.entries(cAgg).map(([k,v])=>({name:k, val:v})).sort((a,b)=>b.val-a.val).slice(0,10);
   if (!charts.bar) charts.bar = echarts.init(document.getElementById('chart-bar'));
   charts.bar.setOption({
     title: {text:'Top10 \u54c1\u7c7b', left:'center', textStyle:{fontSize:14}},
@@ -173,51 +218,39 @@ function render() {
   });
 
   // 区域
-  const regAgg = {};
-  rows.forEach(d => {
-    const k = d.store_region || '\u672a\u77e5';
-    if (!regAgg[k]) regAgg[k] = 0;
-    regAgg[k] += +d.net_sales||0;
-  });
-  const regArr = Object.entries(regAgg).map(([k,v])=>({name:k, val:v}));
+  const rRows = filterRows(D.region);
   if (!charts.region) charts.region = echarts.init(document.getElementById('chart-region'));
   charts.region.setOption({
     title: {text:'\u533a\u57df\u9500\u552e\u5bf9\u6bd4', left:'center', textStyle:{fontSize:14}},
     tooltip: {trigger:'axis'}, grid: {left:50,right:20,top:40,bottom:30},
-    xAxis: {type:'category', data:regArr.map(d=>d.name), axisLabel:{fontSize:10}},
+    xAxis: {type:'category', data:rRows.map(d=>d.store_region), axisLabel:{fontSize:10}},
     yAxis: {type:'value'},
-    series: [{type:'bar', data:regArr.map(d=>+(d.val/10000).toFixed(1))}]
+    series: [{type:'bar', data:rRows.map(d=>+(d.sales/10000).toFixed(1))}]
   });
 
   // 支付
-  const payAgg = {};
-  rows.forEach(d => {
-    const k = d.payment_method || '\u672a\u77e5';
-    if (!payAgg[k]) payAgg[k] = 0;
-    payAgg[k] += +d.net_sales||0;
-  });
+  const pRows = filterRows(D.payment);
+  const pAgg = {};
+  pRows.forEach(d => { pAgg[d.payment_method] = (pAgg[d.payment_method]||0) + (+d.sales||0); });
   if (!charts.pay) charts.pay = echarts.init(document.getElementById('chart-pay'));
   charts.pay.setOption({
     title: {text:'\u652f\u4ed8\u65b9\u5f0f\u5360\u6bd4', left:'center', textStyle:{fontSize:14}},
     tooltip: {trigger:'item'}, legend: {bottom:0, textStyle:{fontSize:10}},
     series: [{type:'pie', radius:['30%','65%'],
-      data:Object.entries(payAgg).map(([k,v])=>({name:k, value:+(v/1000).toFixed(0)})),
+      data:Object.entries(pAgg).map(([k,v])=>({name:k, value:+(v/1000).toFixed(0)})),
       label:{formatter:'{d}%', fontSize:10}}]
   });
 
   // 时段
-  const ppAgg = {};
-  rows.forEach(d => {
-    const k = d.shopping_period || '\u672a\u77e5';
-    if (!ppAgg[k]) ppAgg[k] = 0;
-    ppAgg[k] += +d.net_sales||0;
-  });
+  const sRows = filterRows(D.period);
+  const sAgg = {};
+  sRows.forEach(d => { sAgg[d.shopping_period] = (sAgg[d.shopping_period]||0) + (+d.sales||0); });
   if (!charts.period) charts.period = echarts.init(document.getElementById('chart-period'));
   charts.period.setOption({
     title: {text:'\u8d2d\u7269\u65f6\u6bb5\u5206\u5e03', left:'center', textStyle:{fontSize:14}},
     tooltip: {trigger:'item'}, legend: {bottom:0, textStyle:{fontSize:10}},
     series: [{type:'pie', radius:['30%','65%'],
-      data:Object.entries(ppAgg).map(([k,v])=>({name:k, value:+(v/1000).toFixed(0)})),
+      data:Object.entries(sAgg).map(([k,v])=>({name:k, value:+(v/1000).toFixed(0)})),
       label:{formatter:'{d}%', fontSize:10}}]
   });
 
@@ -226,10 +259,10 @@ function render() {
   document.getElementById('conclusions').innerHTML =
     '<li>\u603b\u9500\u552e\u989d \u00a5' + (sales/10000).toFixed(0) + ' \u4e07\uff0c\u6bdb\u5229\u7387 ' + (sales?(profit/sales*100).toFixed(1):0) + '%</li>' +
     '<li>Top3 \u54c1\u7c7b\uff1a' + top3 + '</li>' +
-    '<li>\u5171 ' + orders.toLocaleString() + ' \u7b14\u8ba2\u5355\uff0c' + cust.toLocaleString() + ' \u4f4d\u5ba2\u6237</li>' +
+    '<li>\u5171 ' + orders.toLocaleString() + ' \u7b14\u8ba2\u5355</li>' +
     '<li>\u5ba2\u5355\u4ef7 \u00a5' + (orders?(sales/orders).toFixed(1):0) + '</li>';
 
-  // 异常
+  // 异常检测
   const alerts = [];
   let prev = null;
   months.forEach(m => {
@@ -255,7 +288,7 @@ render();
 
     with open("report.html", "w", encoding="utf-8") as f:
         f.write(html)
-    print("✅ report.html 已生成（交互版）")
+    print("✅ report.html 已生成")
 
 if __name__ == "__main__":
     main()
